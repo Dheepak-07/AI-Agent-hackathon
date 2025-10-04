@@ -40,11 +40,11 @@ cd <repository-name>
 ### 3. Create a Virtual Environment
 It's highly recommended to use a virtual environment to manage project dependencies.
 <details> <summary><strong>macOS/Linux</strong></summary>
-python3 -m venv venv
-source venv/bin/activate
 </details> <details> <summary><strong>Windows</strong></summary>
+```bash
 python -m venv venv
 venv\Scripts\activate
+```
 </details>
 
 ### 4. Install Dependencies
