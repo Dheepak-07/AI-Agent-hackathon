@@ -110,4 +110,4 @@ if "processed_df" in st.session_state:
 
 # --- Footer ---
 st.markdown("---")
-st.caption("Built by Dheepak-07 | Optimized for Streamlit Cloud via Hugging Face API")
+st.caption("Optimized for Streamlit Cloud via Hugging Face API")
