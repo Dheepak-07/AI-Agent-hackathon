@@ -33,8 +33,8 @@ Ensure you have **Python 3.9** or a newer version installed on your system.
 ### 2. Clone the Repository
 Open your terminal and clone the project repository:
 ```bash
-git clone <your-repository-url>
-cd <repository-name>
+git clone https://github.com/Dheepak-07/AI-Agent-hackathon.git
+cd AI-Agent-hackathon
 ```
 
 ### 3. Create a Virtual Environment
