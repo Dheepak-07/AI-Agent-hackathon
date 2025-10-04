@@ -1,4 +1,3 @@
-# This file specifies the exact library versions for reproducibility.
 streamlit
 pandas
 numpy
