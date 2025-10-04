@@ -42,7 +42,6 @@ if "model_thread_started" not in st.session_state:
 
 # --- Streamlit UI ---
 st.title("💬 Customer Feedback Prioritizer")
-st.caption("Powered by 🤖 Transformers — Classify and prioritize feedback efficiently.")
 
 with st.sidebar:
     st.header("⚙️ Controls")
@@ -116,4 +115,4 @@ if "processed_df" in st.session_state:
 
 # --- Footer ---
 st.markdown("---")
-st.caption("Built by Coder | Optimized for Streamlit Cloud | GPT-5 Guidance")
+st.caption("Built by Dheepak-07 | Optimized for Streamlit Cloud")
