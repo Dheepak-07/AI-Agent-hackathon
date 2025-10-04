@@ -1,9 +1,6 @@
 # app.py
-
 # --- Required Library Versions ---
-# This app was built and tested with the following library versions,
-# which are also specified in the 'requirements.txt' file.
-#
+# Tested with:
 # streamlit
 # pandas
 # numpy
@@ -12,130 +9,144 @@
 # torchaudio==2.1.2
 # transformers==4.39.3
 # accelerate
-# ---------------------------------
 
+import os
 import streamlit as st
 import pandas as pd
 from transformers import pipeline
+from huggingface_hub import login
 
-# --- Core AI and Data Functions ---
+# --- (Optional) Hugging Face Authentication ---
+# If your model is private, set HF_TOKEN in Streamlit Secrets or Environment Variable
+HF_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))
+if HF_TOKEN:
+    login(HF_TOKEN)
+
+# --- Streamlit Page Config ---
+st.set_page_config(page_title="🚀 Feedback Prioritizer", page_icon="💬", layout="wide")
+
+# --- Core AI Functionality ---
 
 @st.cache_resource
 def load_classifier():
     """
-    Loads a lightweight zero-shot classification model.
-    Using @st.cache_resource ensures this model is loaded only once.
+    Loads a lightweight zero-shot classification model for feedback prioritization.
+    Cached to prevent reloading on every rerun.
     """
-    st.write("Loading AI model for the first time... This may take a moment.")
-    
-    # Using a smaller, efficient model to fit within free cloud hosting limits.
-    classifier = pipeline(
-        "zero-shot-classification",
-        model="Moritz/xtremedistil-l6-h256-mnli"
-    )
+    with st.spinner("🚀 Initializing AI model... Please wait ~30 seconds."):
+        classifier = pipeline(
+            "zero-shot-classification",
+            model="typeform/distilbert-base-uncased-mnli",  # Smaller and faster model
+            device_map="auto",  # Automatically picks CPU/GPU if available
+        )
     return classifier
 
-def classify_feedback(feedback_list: list, classifier) -> list:
+
+def classify_feedback(feedback_list, classifier):
     """
-    Classifies a list of feedback texts using the pre-loaded classifier.
+    Classifies customer feedback into priority levels using the model.
     """
     if not feedback_list:
         return []
 
-    candidate_labels = ["Top Priority", "Medium Priority", "Least Priority", "feature required"]
+    candidate_labels = ["Top Priority", "Medium Priority", "Least Priority", "Feature Required"]
     
-    # Show a progress bar for a better user experience
     progress_bar = st.progress(0, text="Analyzing feedback...")
     results = []
-    
-    # Process in batches to update the progress bar
-    batch_size = 50 
-    for i in range(0, len(feedback_list), batch_size):
-        batch = feedback_list[i:i+batch_size]
-        batch_results = classifier(batch, candidate_labels)
-        results.extend(batch_results)
-        progress = min((i + batch_size) / len(feedback_list), 1.0)
-        progress_bar.progress(progress, text=f"Analyzing feedback... {int(progress*100)}% complete")
+    batch_size = 20  # Smaller batches for low-memory environments
 
-    progress_bar.empty() # Clear the progress bar
-    
-    # Extract just the top label for each piece of feedback
-    top_priorities = [result['labels'][0] for result in results]
-    return top_priorities
+    for i in range(0, len(feedback_list), batch_size):
+        batch = feedback_list[i:i + batch_size]
+        try:
+            batch_results = classifier(batch, candidate_labels)
+        except Exception as e:
+            st.error(f"Error processing batch {i // batch_size + 1}: {str(e)}")
+            continue
+
+        # Handle both single and multi-result return formats
+        if isinstance(batch_results, dict):
+            results.append(batch_results)
+        else:
+            results.extend(batch_results)
+
+        progress = min((i + batch_size) / len(feedback_list), 1.0)
+        progress_bar.progress(progress, text=f"Analyzing feedback... {int(progress * 100)}%")
+
+    progress_bar.empty()
+
+    # Extract top label per entry
+    return [r['labels'][0] for r in results if 'labels' in r]
+
 
 @st.cache_data
 def convert_df_to_csv(df):
     """
-    Helper function to convert the processed DataFrame to a downloadable CSV format.
+    Converts a DataFrame to downloadable CSV bytes.
     """
     return df.to_csv(index=False).encode('utf-8')
 
+
 # --- Streamlit App Layout ---
-
-st.set_page_config(page_title="Feedback Prioritizer", page_icon="🚀", layout="wide")
-
-# --- Sidebar for Controls ---
-with st.sidebar:
-    st.header("⚙️ Controls")
-    
-    # 1. File Uploader
-    uploaded_file = st.file_uploader(
-        "Upload your CSV file",
-        type=['csv']
-    )
-    
-    # Controls are displayed only after a file is uploaded
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        
-        # 2. Column Selector
-        feedback_column = st.selectbox(
-            "Select the column with feedback text:",
-            options=df.columns
-        )
-        
-        # 3. Analysis Button
-        analyze_button = st.button("Analyze Feedback", type="primary")
-
-# --- Main Page ---
 st.title("🚀 Customer Feedback Prioritizer")
 st.write(
-    "Upload a CSV file, select the column containing customer feedback, "
-    "and this tool will automatically classify each entry by priority."
+    """
+    Upload a CSV file containing customer feedback, and this app will automatically
+    categorize each feedback entry by **priority** using advanced NLP.
+    """
 )
 
-# Processing logic runs only when the button is clicked
+# --- Sidebar Controls ---
+with st.sidebar:
+    st.header("⚙️ Controls")
+
+    uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+
+    if uploaded_file:
+        try:
+            df = pd.read_csv(uploaded_file)
+        except Exception as e:
+            st.error(f"❌ Could not read CSV: {e}")
+            st.stop()
+
+        feedback_column = st.selectbox("Select the column with feedback text:", options=df.columns)
+        analyze_button = st.button("Analyze Feedback", type="primary")
+    else:
+        df, feedback_column, analyze_button = None, None, None
+
+
+# --- Main Logic ---
 if uploaded_file and analyze_button:
-    st.subheader("📊 Analysis in Progress")
-    
-    # Load the model
+    st.subheader("📊 Running Analysis...")
+
+    # Load AI model
     classifier = load_classifier()
-    
-    # Prepare and classify the data
+
+    # Preprocess feedback data
     df_to_process = df.copy()
     df_to_process[feedback_column] = df_to_process[feedback_column].astype(str).fillna('')
-    feedback_list = df_to_process[feedback_column].tolist()
-    
-    priorities_list = classify_feedback(feedback_list, classifier)
-    
-    # Add results to the DataFrame
-    df_to_process['Priority'] = priorities_list
-    
-    # Store the processed DataFrame in session state to keep it available
-    st.session_state['processed_df'] = df_to_process
 
-# Display results and download button if processing is complete
-if 'processed_df' in st.session_state:
+    # Classify
+    priorities = classify_feedback(df_to_process[feedback_column].tolist(), classifier)
+    df_to_process["Priority"] = priorities
+
+    # Save results
+    st.session_state["processed_df"] = df_to_process
+
+# --- Results Display ---
+if "processed_df" in st.session_state:
     st.subheader("✅ Analysis Complete!")
-    
-    processed_df = st.session_state['processed_df']
-    st.dataframe(processed_df)
-    
-    csv_data = convert_df_to_csv(processed_df)
+    processed_df = st.session_state["processed_df"]
 
+    st.dataframe(processed_df, use_container_width=True)
+
+    csv_data = convert_df_to_csv(processed_df)
     st.download_button(
-       label="📥 Download Results as CSV",
-       data=csv_data,
-       file_name='prioritized_feedback.csv',
-       mime='text/csv',
+        label="📥 Download Results as CSV",
+        data=csv_data,
+        file_name="prioritized_feedback.csv",
+        mime="text/csv"
     )
+
+# --- Footer ---
+st.markdown("---")
+st.caption("Powered by 🤖 Hugging Face Transformers + Streamlit | Developed by Coder")

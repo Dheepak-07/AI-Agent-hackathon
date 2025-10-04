@@ -6,3 +6,4 @@ torchvision==0.16.2
 torchaudio==2.1.2
 transformers==4.39.3
 accelerate
+huggingface_hub
